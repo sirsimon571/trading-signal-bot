@@ -390,7 +390,32 @@ startAutoRefresh();
 @app.get("/", response_class=HTMLResponse)
 def dashboard():
     return HTMLResponse(content=DASHBOARD_HTML)
-
+@app.get("/debug/{ticker}")
+def debug_ticker(ticker: str):
+    import requests
+    from strategies import prepare_df, scan_all_strategies, detect_fvg, detect_liquidity_sweep, detect_orb
+    
+    url = f"https://api.itick.org/stock/kline"
+    params = {"region": "US", "code": ticker.upper(), "kType": 1, "limit": 50}
+    headers = {"token": os.environ.get("ITICK_API_KEY", "")}
+    
+    resp = requests.get(url, headers=headers, params=params, timeout=10)
+    raw = resp.json()
+    
+    if not raw.get("data"):
+        return {"error": "No data returned", "raw_response": raw}
+    
+    df = prepare_df(raw["data"])
+    
+    return {
+        "bars_received": len(df),
+        "latest_close": float(df.iloc[-1]["close"]) if len(df) else None,
+        "api_response_code": raw.get("code"),
+        "fvg_signals":   detect_fvg(df),
+        "sweep_signals": detect_liquidity_sweep(df),
+        "orb_signals":   detect_orb(df),
+        "all_signals_after_rr_filter": scan_all_strategies(df, ticker),
+    }
 
 if __name__ == "__main__":
     import uvicorn
