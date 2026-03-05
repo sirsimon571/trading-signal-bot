@@ -12,7 +12,11 @@ BASE_URL = "https://api.itick.org"
 NY_TZ = pytz.timezone("America/New_York")
 
 WATCHLIST = {
-    "US": ["AAPL","TSLA","NVDA","MSFT","AMZN","META","SPY","QQQ","AMD","GOOGL"],
+    "US": [
+        "AAPL", "TSLA", "NVDA", "MSFT", "AMZN",
+        "META", "SPY",  "QQQ",  "AMD",  "GOOGL",
+        "MARA", "SMCI", "COIN", "PLTR", "TQQQ",
+    ],
 }
 
 def get_market_data(symbol, region="US"):
