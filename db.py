@@ -38,7 +38,7 @@ def init_db():
                 ON signals (
                     ticker,
                     signal_type,
-                    (created_at AT TIME ZONE 'America/New_York')::date
+                    DATE(created_at AT TIME ZONE 'America/New_York')
                 );
             """)
             conn.commit()
