@@ -15,7 +15,7 @@ WATCHLIST = {
     "US": [
         "AAPL", "TSLA", "NVDA", "MSFT", "AMZN",
         "META", "SPY",  "QQQ",  "AMD",  "GOOGL",
-        "MARA", "SMCI", "COIN", "PLTR", "TQQQ",
+        "MARA", "SMCI", "COIN", "PLTR", "TQQQ", "BBIO", "AMD", "AVGO"
     ],
 }
 
