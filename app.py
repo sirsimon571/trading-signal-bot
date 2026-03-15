@@ -391,29 +391,30 @@ startAutoRefresh();
 def dashboard():
     return HTMLResponse(content=DASHBOARD_HTML)
 @app.get("/debug/{ticker}")
+@app.get("/debug/{ticker}")
 def debug_ticker(ticker: str):
-    import requests
+    import yfinance as yf
     from strategies import prepare_df, scan_all_strategies, detect_fvg, detect_liquidity_sweep, detect_orb
-    
-    url = f"https://api.itick.org/stock/kline"
-    params = {"region": "US", "code": ticker.upper(), "kType": 1, "limit": 50}
-    headers = {"token": os.environ.get("ITICK_API_KEY", "")}
-    
-    resp = requests.get(url, headers=headers, params=params, timeout=10)
-    raw = resp.json()
-    
-    if not raw.get("data"):
-        return {"error": "No data returned", "raw_response": raw}
-    
-    df = prepare_df(raw["data"])
-    
+
+    df_raw = yf.download(ticker.upper(), period="1d", interval="1m", progress=False, auto_adjust=True)
+    if df_raw is None or df_raw.empty:
+        return {"error": "No data returned from yFinance"}
+
+    df_raw = df_raw.reset_index().rename(columns={
+        "Datetime": "t", "Open": "o", "High": "h",
+        "Low": "l", "Close": "c", "Volume": "v",
+    })
+    df_raw["t"] = df_raw["t"].astype("int64") // 10**6
+    records = df_raw.to_dict("records")
+
+    df = prepare_df(records)
+
     return {
-        "bars_received": len(df),
-        "latest_close": float(df.iloc[-1]["close"]) if len(df) else None,
-        "api_response_code": raw.get("code"),
-        "fvg_signals":   detect_fvg(df),
-        "sweep_signals": detect_liquidity_sweep(df),
-        "orb_signals":   detect_orb(df),
+        "bars_received":              len(df),
+        "latest_close":               float(df.iloc[-1]["close"]) if len(df) else None,
+        "fvg_signals":                detect_fvg(df),
+        "sweep_signals":              detect_liquidity_sweep(df),
+        "orb_signals":                detect_orb(df),
         "all_signals_after_rr_filter": scan_all_strategies(df, ticker),
     }
 
