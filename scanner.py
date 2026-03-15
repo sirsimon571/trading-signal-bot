@@ -1,42 +1,51 @@
-import logging, os, time
+import logging
+import os
+import time
 from datetime import datetime
-import pytz, requests
+
+import pytz
+import yfinance as yf
+
 from db import init_db, save_signal
 from strategies import prepare_df, scan_all_strategies
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
 
-API_TOKEN = os.environ.get("ITICK_API_KEY", "")
-BASE_URL = "https://api.itick.org"
 NY_TZ = pytz.timezone("America/New_York")
 
 WATCHLIST = {
-    "US": [
-        "AAPL", "TSLA", "NVDA", "MSFT", "AMZN",
-        "META", "SPY",  "QQQ",  "AMD",  "GOOGL",
-        "MARA", "SMCI", "COIN", "PLTR", "TQQQ", "BBIO", "AMD", "AVGO"
-    ],
+    "US": ["AAPL","TSLA","NVDA","MSFT","AMZN","META","SPY","QQQ","AMD","GOOGL",
+           "MARA","SMCI","COIN","PLTR","TQQQ","BBIO"],
 }
 
+SCAN_INTERVAL = 60
+API_DELAY = 1.0
+
+
 def get_market_data(symbol, region="US"):
-    url = f"{BASE_URL}/stock/kline"
-    params = {"region": region, "code": symbol, "kType": 1, "limit": 50}
-    headers = {"token": API_TOKEN}
     try:
-        resp = requests.get(url, headers=headers, params=params, timeout=10)
-        resp.raise_for_status()
-        data = resp.json().get("data") or []
-        return data if data else None
-    except requests.RequestException as exc:
-        log.error("API error for %s: %s", symbol, exc)
+        df = yf.download(symbol, period="1d", interval="1m", progress=False, auto_adjust=True)
+        if df is None or df.empty:
+            return None
+        df = df.reset_index()
+        df = df.rename(columns={
+            "Datetime": "t",
+            "Open":     "o",
+            "High":     "h",
+            "Low":      "l",
+            "Close":    "c",
+            "Volume":   "v",
+        })
+        df["t"] = df["t"].astype("int64") // 10**6
+        return df.to_dict("records")
+    except Exception as exc:
+        log.error("yFinance error for %s: %s", symbol, exc)
         return None
+
 
 def run():
     log.info("Day Trading Signal Bot starting...")
-    if not API_TOKEN:
-        log.error("ITICK_API_KEY not set.")
-        return
     init_db()
     while True:
         now_ny = datetime.now(NY_TZ)
@@ -56,10 +65,11 @@ def run():
                 for sig in signals:
                     if save_signal(symbol, sig):
                         new_count += 1
-                        log.info("NEW: %s %s Entry:%s RR:%.1f", symbol, sig["type"], sig["entry"], sig.get("rr",0))
-                time.sleep(0.5)
+                        log.info("NEW: %s %s Entry:%s RR:%.1f", symbol, sig["type"], sig["entry"], sig.get("rr", 0))
+                time.sleep(API_DELAY)
         log.info("Done: %d new signal(s). Sleeping 60s.", new_count)
-        time.sleep(60)
+        time.sleep(SCAN_INTERVAL)
+
 
 if __name__ == "__main__":
     run()
